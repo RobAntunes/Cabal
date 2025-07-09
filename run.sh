@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Start the TypeScript backend in the background
-echo "Starting Cabal backend..."
-npm run dev &
-BACKEND_PID=$!
+# Start the WebSocket server in the background
+echo "Starting Cabal WebSocket server..."
+npm run server &
+SERVER_PID=$!
 
-# Give backend time to initialize
+# Give server time to initialize
 sleep 2
 
 # Start the TUI
 echo "Starting TUI..."
-cd tui && go run main.go
+cd tui && go run main.go websocket.go
 
 # Cleanup on exit
-trap "kill $BACKEND_PID" EXIT
+trap "kill $SERVER_PID" EXIT
