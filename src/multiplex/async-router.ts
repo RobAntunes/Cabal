@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Happen, Node, Event } from '@happen/core';
+import { createHappen, HappenNode, Event } from '@happen/core';
 
 export interface RouteConfig {
   pattern: string | RegExp;
@@ -9,13 +9,14 @@ export interface RouteConfig {
 
 export class AsyncRouter extends EventEmitter {
   private routes: Map<string, RouteConfig[]> = new Map();
-  private node: Node;
+  private node: HappenNode;
   private messageQueue: Array<{ msg: any; timestamp: number }> = [];
   private processing = false;
+  private happen = createHappen();
 
   constructor(nodeId: string) {
     super();
-    this.node = Happen.create(`router:${nodeId}`);
+    this.node = this.happen.createNode(`router:${nodeId}`);
     this.setupBaseRoutes();
   }
 

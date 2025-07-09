@@ -10,7 +10,7 @@ sleep 2
 
 # Start the TUI
 echo "Starting TUI..."
-cd tui && go run main.go websocket.go
+cd tui && go run .
 
 # Cleanup on exit
 trap "kill $SERVER_PID" EXIT

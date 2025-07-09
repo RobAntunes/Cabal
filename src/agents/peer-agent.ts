@@ -1,4 +1,4 @@
-import { Happen, Node, Event } from '@happen/core';
+import { createHappen, HappenNode, Event } from '@happen/core';
 import { ClaudeMultiplexer, AgentMessage } from '../multiplex/multiplexer.js';
 
 export interface PeerMessage {
@@ -9,15 +9,16 @@ export interface PeerMessage {
 }
 
 export class PeerAgent {
-  private node: Node;
+  private node: HappenNode;
   private agentId: string;
   private peers: Set<string> = new Set();
+  private happen = createHappen();
 
   constructor(
     private multiplexer: ClaudeMultiplexer,
     private nodeId: string
   ) {
-    this.node = Happen.create(nodeId);
+    this.node = this.happen.createNode(nodeId);
     this.agentId = '';
     this.setupEventHandlers();
   }

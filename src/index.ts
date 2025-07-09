@@ -2,7 +2,7 @@ import { ClaudeMultiplexer } from './multiplex/multiplexer.js';
 import { PeerAgent } from './agents/peer-agent.js';
 import { AsyncRouter } from './multiplex/async-router.js';
 import { StreamSplitter } from './multiplex/stream-splitter.js';
-import { Happen } from '@happen/core';
+import { createHappen } from '@happen/core';
 
 export class Cabal {
   private multiplexer: ClaudeMultiplexer;

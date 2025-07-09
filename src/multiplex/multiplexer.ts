@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { v4 as uuidv4 } from 'crypto';
+import { randomUUID } from 'crypto';
 
 export interface AgentMessage {
   agentId: string;
@@ -26,14 +26,14 @@ export class ClaudeMultiplexer extends EventEmitter {
   }
 
   async spawnAgent(options: AgentOptions = {}): Promise<string> {
-    const agentId = options.id || uuidv4();
+    const agentId = options.id || randomUUID();
     
     if (this.agents.size >= this.maxConcurrent) {
       throw new Error(`Maximum concurrent agents (${this.maxConcurrent}) reached`);
     }
 
     const args = [
-      'code',
+      'code', 
       '--print',
       '--format', 'json-stream',
       ...(options.args || [])
@@ -82,7 +82,7 @@ export class ClaudeMultiplexer extends EventEmitter {
       type: 'request',
       data: message,
       timestamp: Date.now(),
-      correlationId: correlationId || uuidv4()
+      correlationId: correlationId || randomUUID()
     };
 
     this.emit('message:send', msg);
