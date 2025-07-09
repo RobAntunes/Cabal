@@ -1,0 +1,27 @@
+{
+  "name": "cabal",
+  "version": "1.0.0",
+  "description": "Multiplexed multi-agent system for Claude instances",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "agents",
+    "multiplex"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@happen/core": "file:Happen",
+    "@types/node": "^24.0.12",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
