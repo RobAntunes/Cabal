@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "server": "tsx watch src/server.ts",
+    "enhanced-server": "tsx src/enhanced-server.ts",
     "mock": "tsx src/mock-server.ts",
+    "enhanced-mock": "tsx src/enhanced-mock-server.ts",
+    "demo:notifications": "tsx examples/notification-demo.ts",
+    "demo:human-loop": "tsx examples/human-in-loop-demo.ts",
     "build": "tsc",
     "test": "vitest"
   },

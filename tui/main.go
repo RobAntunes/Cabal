@@ -30,12 +30,32 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240"))
 
+	// Notification styles
+	normalBorderStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("34")) // Green
+
+	notificationBorderStyle = lipgloss.NewStyle().
+					Border(lipgloss.RoundedBorder()).
+					BorderForeground(lipgloss.Color("214")) // Yellow/Orange
+
+	criticalBorderStyle = lipgloss.NewStyle().
+					Border(lipgloss.RoundedBorder()).
+					BorderForeground(lipgloss.Color("196")) // Red
+
 	statusStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241"))
 
 	agentStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("212"))
+
+	notificationBadgeStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("231")).
+				Background(lipgloss.Color("196")).
+				PaddingLeft(1).
+				PaddingRight(1)
 )
 
 type message struct {
@@ -44,16 +64,42 @@ type message struct {
 	markdown bool
 }
 
+type agentStatus int
+
+const (
+	statusNormal agentStatus = iota
+	statusNotification
+	statusCritical
+)
+
 type agent struct {
-	id       string
-	name     string
-	status   string
-	messages []message
+	id               string
+	name             string
+	status           string
+	messages         []message
+	notificationLevel agentStatus
+	pendingRequests  int
 }
 
 func (a agent) FilterValue() string { return a.name }
-func (a agent) Title() string       { return a.name }
-func (a agent) Description() string { return fmt.Sprintf("Status: %s", a.status) }
+
+func (a agent) Title() string {
+	notificationIndicator := ""
+	if a.pendingRequests > 0 {
+		notificationIndicator = notificationBadgeStyle.Render(fmt.Sprintf(" %d ", a.pendingRequests))
+	}
+	return fmt.Sprintf("%s %s", a.name, notificationIndicator)
+}
+
+func (a agent) Description() string {
+	statusEmoji := "🟢" // Green
+	if a.notificationLevel == statusNotification {
+		statusEmoji = "🟡" // Yellow
+	} else if a.notificationLevel == statusCritical {
+		statusEmoji = "🔴" // Red
+	}
+	return fmt.Sprintf("%s Status: %s", statusEmoji, a.status)
+}
 
 type model struct {
 	agents      []agent
@@ -71,9 +117,9 @@ type model struct {
 func initialModel() model {
 	// Create sample agents
 	agents := []agent{
-		{id: "agent-0", name: "Agent Alpha", status: "ready", messages: []message{{content: "Initialized", isAgent: true}}},
-		{id: "agent-1", name: "Agent Beta", status: "ready", messages: []message{{content: "Initialized", isAgent: true}}},
-		{id: "agent-2", name: "Agent Gamma", status: "ready", messages: []message{{content: "Initialized", isAgent: true}}},
+		{id: "agent-0", name: "Agent Alpha", status: "ready", messages: []message{{content: "Initialized", isAgent: true}}, notificationLevel: statusNormal},
+		{id: "agent-1", name: "Agent Beta", status: "ready", messages: []message{{content: "Initialized", isAgent: true}}, notificationLevel: statusNormal},
+		{id: "agent-2", name: "Agent Gamma", status: "ready", messages: []message{{content: "Initialized", isAgent: true}}, notificationLevel: statusNormal},
 	}
 
 	// Create agent list
@@ -212,6 +258,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
+
+	case notificationMsg:
+		// Handle notification updates
+		for i, agent := range m.agents {
+			if agent.id == msg.agentId {
+				m.agents[i].notificationLevel = msg.notificationLevel
+				m.agents[i].pendingRequests = msg.pendingRequests
+				
+				// Add notification message to agent's history
+				if msg.message != "" {
+					m.agents[i].messages = append(m.agents[i].messages, message{
+						content:  fmt.Sprintf("📢 %s", msg.message),
+						isAgent:  true,
+						markdown: false,
+					})
+					
+					// Update viewport
+					vp := m.viewports[agent.id]
+					vp.SetContent(renderMessages(m.agents[i].messages, m.renderer))
+					vp.GotoBottom()
+					m.viewports[agent.id] = vp
+				}
+				
+				// Update agent list
+				items := make([]list.Item, len(m.agents))
+				for j, a := range m.agents {
+					items[j] = a
+				}
+				m.agentList.SetItems(items)
+				break
+			}
+		}
 	}
 
 	// Update components
@@ -263,11 +341,29 @@ func (m model) View() string {
 		vp.Width = rightWidth - 4
 		vp.Height = viewportHeight - 2
 		
-		agentHeader := fmt.Sprintf("%s %s",
-			agentStyle.Render(agent.name),
-			statusStyle.Render(fmt.Sprintf("(%s)", agent.status)))
+		// Choose border style based on notification level
+		var borderStyle lipgloss.Style
+		switch agent.notificationLevel {
+		case statusCritical:
+			borderStyle = criticalBorderStyle
+		case statusNotification:
+			borderStyle = notificationBorderStyle
+		default:
+			borderStyle = normalBorderStyle
+		}
 		
-		agentView = activeStyle.
+		// Add notification badge to header if there are pending requests
+		notificationBadge := ""
+		if agent.pendingRequests > 0 {
+			notificationBadge = " " + notificationBadgeStyle.Render(fmt.Sprintf(" %d pending ", agent.pendingRequests))
+		}
+		
+		agentHeader := fmt.Sprintf("%s %s%s",
+			agentStyle.Render(agent.name),
+			statusStyle.Render(fmt.Sprintf("(%s)", agent.status)),
+			notificationBadge)
+		
+		agentView = borderStyle.
 			Width(rightWidth - 2).
 			Height(viewportHeight).
 			Render(fmt.Sprintf("%s\n\n%s", agentHeader, vp.View()))
@@ -292,8 +388,27 @@ func (m model) View() string {
 		inputView,
 	)
 	
-	// Status bar
-	status := statusStyle.Render(fmt.Sprintf(" %d agents • Tab: switch • Enter: send • Ctrl+C: quit", len(m.agents)))
+	// Calculate total notifications
+	totalNotifications := 0
+	criticalCount := 0
+	for _, agent := range m.agents {
+		totalNotifications += agent.pendingRequests
+		if agent.notificationLevel == statusCritical {
+			criticalCount++
+		}
+	}
+	
+	// Status bar with notification info
+	notificationStatus := ""
+	if totalNotifications > 0 {
+		if criticalCount > 0 {
+			notificationStatus = fmt.Sprintf(" • 🔴 %d critical", criticalCount)
+		} else {
+			notificationStatus = fmt.Sprintf(" • 🟡 %d notifications", totalNotifications)
+		}
+	}
+	
+	status := statusStyle.Render(fmt.Sprintf(" %d agents%s • Tab: switch • Enter: send • Ctrl+C: quit", len(m.agents), notificationStatus))
 	
 	// Final layout
 	main := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
@@ -305,6 +420,13 @@ func (m model) View() string {
 type responseMsg struct {
 	agentIndex int
 	response   string
+}
+
+type notificationMsg struct {
+	agentId          string
+	notificationLevel agentStatus
+	pendingRequests  int
+	message          string
 }
 
 // Render messages with glamour for markdown
