@@ -107,6 +107,7 @@ func initialModel() model {
 	ta.Placeholder = "Send message to agent..."
 	ta.Focus()
 	ta.CharLimit = 500
+	ta.ShowLineNumbers = false
 
 	// Create spinner
 	s := spinner.New()
@@ -143,9 +144,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		listWidth := m.width / 4
 		m.agentList.SetSize(listWidth, m.height-3)
 
-		// Update viewport sizes
-		vpWidth := (m.width - listWidth - 4) / 2
-		vpHeight := (m.height - 10) / 2
+		// Update viewport sizes for single large view
+		vpWidth := m.width - listWidth - 6
+		vpHeight := m.height - 12
 
 		for id, vp := range m.viewports {
 			vp.Width = vpWidth
@@ -244,61 +245,50 @@ func (m model) View() string {
 		Height(m.height - 3)
 	leftPanel := listStyle.Render(m.agentList.View())
 
-	// Right panel - agent views
+	// Right panel - single agent view
 	rightWidth := m.width - m.width/4 - 2
 	
 	// Title
 	title := titleStyle.Render("🤖 CABAL - Multiplexed Claude Agents")
 	
-	// Agent viewports (2x2 grid)
-	vpWidth := rightWidth / 2
-	vpHeight := (m.height - 10) / 2
+	// Single large viewport for active agent
+	viewportHeight := m.height - 12 // Leave room for title, input, and status
 	
-	var viewportRows []string
-	row1 := []string{}
-	row2 := []string{}
-	
-	for i, agent := range m.agents[:min(4, len(m.agents))] {
+	var agentView string
+	if m.activeAgent < len(m.agents) {
+		agent := m.agents[m.activeAgent]
 		vp := m.viewports[agent.id]
 		
-		// Style based on active/inactive
-		style := inactiveStyle
-		if i == m.activeAgent {
-			style = activeStyle
-		}
+		// Update viewport size to use full space
+		vp.Width = rightWidth - 4
+		vp.Height = viewportHeight - 2
 		
-		vpView := style.
-			Width(vpWidth - 2).
-			Height(vpHeight).
-			Render(fmt.Sprintf("%s %s\n%s", 
-				agentStyle.Render(agent.name),
-				statusStyle.Render(fmt.Sprintf("(%s)", agent.status)),
-				vp.View()))
+		agentHeader := fmt.Sprintf("%s %s",
+			agentStyle.Render(agent.name),
+			statusStyle.Render(fmt.Sprintf("(%s)", agent.status)))
 		
-		if i < 2 {
-			row1 = append(row1, vpView)
-		} else {
-			row2 = append(row2, vpView)
-		}
+		agentView = activeStyle.
+			Width(rightWidth - 2).
+			Height(viewportHeight).
+			Render(fmt.Sprintf("%s\n\n%s", agentHeader, vp.View()))
+	} else {
+		agentView = inactiveStyle.
+			Width(rightWidth - 2).
+			Height(viewportHeight).
+			Render("No agent selected")
 	}
 	
-	viewportRows = append(viewportRows, lipgloss.JoinHorizontal(lipgloss.Top, row1...))
-	if len(row2) > 0 {
-		viewportRows = append(viewportRows, lipgloss.JoinHorizontal(lipgloss.Top, row2...))
-	}
-	
-	viewports := lipgloss.JoinVertical(lipgloss.Left, viewportRows...)
-	
-	// Input area
-	inputView := activeStyle.
+	// Input area - clean style without border decoration
+	inputStyle := lipgloss.NewStyle().
 		Width(rightWidth - 2).
-		Render(m.input.View())
+		Padding(0, 1)
+	inputView := inputStyle.Render(m.input.View())
 	
 	// Combine right panel
 	rightPanel := lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
-		viewports,
+		agentView,
 		inputView,
 	)
 	
